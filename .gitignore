@@ -123,4 +123,9 @@ dist
 # Webstorm
 .idea
 
-/test/hbConfig
+# Mock API local store (token hashes + execution log, regenerated per dev)
+dev/mock-api/store.json
+
+# Homebridge runtime artifacts (HAP cache, persisted pairings) from local dev
+test/hbConfig/accessories/
+test/hbConfig/persist/

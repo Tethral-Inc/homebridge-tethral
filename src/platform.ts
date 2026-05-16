@@ -1,150 +1,142 @@
 import type { API, Characteristic, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
 
-import { ExamplePlatformAccessory } from './platformAccessory.js';
+import { TethralAccessory } from './platformAccessory.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
+import { TethralClient, type TethralRoutine } from './tethralClient.js';
 
-// This is only required when using Custom Services and Characteristics not support by HomeKit
-import { EveHomeKitTypes } from 'homebridge-lib/EveHomeKitTypes';
+interface TethralPlatformConfig extends PlatformConfig {
+  apiToken?: string;
+  apiBaseUrl?: string;
+  pollIntervalSeconds?: number;
+  executeTimeoutMs?: number;
+}
 
-/**
- * HomebridgePlatform
- * This class is the main constructor for your plugin, this is where you should
- * parse the user config and discover/register accessories with Homebridge.
- */
-export class ExampleHomebridgePlatform implements DynamicPlatformPlugin {
+interface RoutineContext {
+  routine: TethralRoutine;
+}
+
+const DEFAULT_BASE_URL = 'https://api.tethral.ai';
+const DEFAULT_POLL_SECONDS = 300;
+const DEFAULT_EXECUTE_TIMEOUT_MS = 5_000;
+const MIN_POLL_SECONDS = 60;
+
+export class TethralPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
 
-  // this is used to track restored cached accessories
-  public readonly accessories: Map<string, PlatformAccessory> = new Map();
-  public readonly discoveredCacheUUIDs: string[] = [];
+  public readonly accessories: Map<string, PlatformAccessory<RoutineContext>> = new Map();
+  public readonly client: TethralClient | null;
 
-  // This is only required when using Custom Services and Characteristics not support by HomeKit
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public readonly CustomServices: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public readonly CustomCharacteristics: any;
+  private readonly pollIntervalMs: number;
+  private pollTimer: NodeJS.Timeout | null = null;
 
   constructor(
     public readonly log: Logging,
-    public readonly config: PlatformConfig,
+    public readonly config: TethralPlatformConfig,
     public readonly api: API,
   ) {
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
 
-    // This is only required when using Custom Services and Characteristics not support by HomeKit
-    this.CustomServices = new EveHomeKitTypes(this.api).Services;
-    this.CustomCharacteristics = new EveHomeKitTypes(this.api).Characteristics;
+    const apiToken = (this.config.apiToken ?? '').trim();
+    const apiBaseUrl = (this.config.apiBaseUrl ?? DEFAULT_BASE_URL).trim();
+    const pollSeconds = Math.max(MIN_POLL_SECONDS, this.config.pollIntervalSeconds ?? DEFAULT_POLL_SECONDS);
+    this.pollIntervalMs = pollSeconds * 1000;
 
-    this.log.debug('Finished initializing platform:', this.config.name);
+    if (!apiToken) {
+      this.log.error('Tethral plugin is not configured: apiToken is missing. Edit the plugin config and add your Tethral API token.');
+      this.client = null;
+    } else {
+      this.client = new TethralClient({
+        baseUrl: apiBaseUrl,
+        token: apiToken,
+        executeTimeoutMs: this.config.executeTimeoutMs ?? DEFAULT_EXECUTE_TIMEOUT_MS,
+      });
+      this.log.info(`Tethral platform initialized (base URL: ${apiBaseUrl}, poll every ${pollSeconds}s)`);
+    }
 
-    // When this event is fired it means Homebridge has restored all cached accessories from disk.
-    // Dynamic Platform plugins should only register new accessories after this event was fired,
-    // in order to ensure they weren't added to homebridge already. This event can also be used
-    // to start discovery of new accessories.
     this.api.on('didFinishLaunching', () => {
-      log.debug('Executed didFinishLaunching callback');
-      // run the method to discover / register your devices as accessories
-      this.discoverDevices();
+      if (!this.client) {
+        return;
+      }
+      void this.syncRoutines();
+      this.pollTimer = setInterval(() => void this.syncRoutines(), this.pollIntervalMs);
+    });
+
+    this.api.on('shutdown', () => {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+      }
     });
   }
 
-  /**
-   * This function is invoked when homebridge restores cached accessories from disk at startup.
-   * It should be used to set up event handlers for characteristics and update respective values.
-   */
-  configureAccessory(accessory: PlatformAccessory) {
-    this.log.info('Loading accessory from cache:', accessory.displayName);
-
-    // add the restored accessory to the accessories cache, so we can track if it has already been registered
-    this.accessories.set(accessory.UUID, accessory);
+  configureAccessory(accessory: PlatformAccessory): void {
+    this.log.debug(`Restoring accessory from cache: ${accessory.displayName}`);
+    this.accessories.set(accessory.UUID, accessory as PlatformAccessory<RoutineContext>);
   }
 
-  /**
-   * This is an example method showing how to register discovered accessories.
-   * Accessories must only be registered once, previously created accessories
-   * must not be registered again to prevent "duplicate UUID" errors.
-   */
-  discoverDevices() {
-    // EXAMPLE ONLY
-    // A real plugin you would discover accessories from the local network, cloud services
-    // or a user-defined array in the platform config.
-    const exampleDevices = [
-      {
-        exampleUniqueId: 'ABCD',
-        exampleDisplayName: 'Bedroom',
-      },
-      {
-        exampleUniqueId: 'EFGH',
-        exampleDisplayName: 'Kitchen',
-      },
-      {
-        // This is an example of a device which uses a Custom Service
-        exampleUniqueId: 'IJKL',
-        exampleDisplayName: 'Backyard',
-        CustomService: 'AirPressureSensor',
-      },
-    ];
+  private uuidFor(routineId: string): string {
+    return this.api.hap.uuid.generate(`${PLUGIN_NAME}:routine:${routineId}`);
+  }
 
-    // loop over the discovered devices and register each one if it has not already been registered
-    for (const device of exampleDevices) {
-      // generate a unique id for the accessory this should be generated from
-      // something globally unique, but constant, for example, the device serial
-      // number or MAC address
-      const uuid = this.api.hap.uuid.generate(device.exampleUniqueId);
-
-      // see if an accessory with the same uuid has already been registered and restored from
-      // the cached devices we stored in the `configureAccessory` method above
-      const existingAccessory = this.accessories.get(uuid);
-
-      if (existingAccessory) {
-        // the accessory already exists
-        this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-
-        // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. e.g.:
-        // existingAccessory.context.device = device;
-        // this.api.updatePlatformAccessories([existingAccessory]);
-
-        // create the accessory handler for the restored accessory
-        // this is imported from `platformAccessory.ts`
-        new ExamplePlatformAccessory(this, existingAccessory);
-
-        // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, e.g.:
-        // remove platform accessories when no longer present
-        // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
-        // this.log.info('Removing existing accessory from cache:', existingAccessory.displayName);
-      } else {
-        // the accessory does not yet exist, so we need to create it
-        this.log.info('Adding new accessory:', device.exampleDisplayName);
-
-        // create a new accessory
-        const accessory = new this.api.platformAccessory(device.exampleDisplayName, uuid);
-
-        // store a copy of the device object in the `accessory.context`
-        // the `context` property can be used to store any data about the accessory you may need
-        accessory.context.device = device;
-
-        // create the accessory handler for the newly create accessory
-        // this is imported from `platformAccessory.ts`
-        new ExamplePlatformAccessory(this, accessory);
-
-        // link the accessory to your platform
-        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      }
-
-      // push into discoveredCacheUUIDs
-      this.discoveredCacheUUIDs.push(uuid);
+  private async syncRoutines(): Promise<void> {
+    if (!this.client) {
+      return;
     }
 
-    // you can also deal with accessories from the cache which are no longer present by removing them from Homebridge
-    // for example, if your plugin logs into a cloud account to retrieve a device list, and a user has previously removed a device
-    // from this cloud account, then this device will no longer be present in the device list but will still be in the Homebridge cache
-    for (const [uuid, accessory] of this.accessories) {
-      if (!this.discoveredCacheUUIDs.includes(uuid)) {
-        this.log.info('Removing existing accessory from cache:', accessory.displayName);
-        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    let routines: TethralRoutine[];
+    try {
+      routines = await this.client.listRoutines();
+    } catch (err) {
+      this.log.warn(`Routine sync failed; keeping cached accessories. ${(err as Error).message}`);
+      return;
+    }
+
+    const seenUUIDs = new Set<string>();
+
+    for (const routine of routines) {
+      const uuid = this.uuidFor(routine.id);
+      seenUUIDs.add(uuid);
+      const existing = this.accessories.get(uuid);
+
+      if (existing) {
+        existing.context.routine = routine;
+        if (existing.displayName !== routine.name) {
+          existing.displayName = routine.name;
+        }
+        this.api.updatePlatformAccessories([existing]);
+        new TethralAccessory(this, existing);
+        this.log.debug(`Refreshed accessory: ${routine.name} (${routine.id})`);
+      } else {
+        const accessory = new this.api.platformAccessory<RoutineContext>(routine.name, uuid);
+        accessory.context.routine = routine;
+        new TethralAccessory(this, accessory);
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        this.accessories.set(uuid, accessory);
+        this.publishToMatter(accessory);
+        this.log.info(`Registered new Tethral routine as Switch: ${routine.name} (${routine.id})`);
       }
+    }
+
+    for (const [uuid, accessory] of this.accessories) {
+      if (!seenUUIDs.has(uuid)) {
+        this.log.info(`Removing stale routine: ${accessory.displayName}`);
+        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        this.accessories.delete(uuid);
+      }
+    }
+  }
+
+  private publishToMatter(accessory: PlatformAccessory<RoutineContext>): void {
+    const matter = (this.api as unknown as { matter?: { switch?: { emit: (a: PlatformAccessory) => void } } }).matter;
+    if (!matter?.switch?.emit) {
+      return;
+    }
+    try {
+      matter.switch.emit(accessory);
+      this.log.debug(`Published to Matter: ${accessory.displayName}`);
+    } catch (err) {
+      this.log.warn(`Matter publish failed for ${accessory.displayName}: ${(err as Error).message}`);
     }
   }
 }

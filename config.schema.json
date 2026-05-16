@@ -1,17 +1,50 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "Tethral",
   "pluginType": "platform",
   "singular": true,
-  "strictValidation": false,
+  "strictValidation": true,
+  "headerDisplay": "Expose your Tethral routines as HomeKit Switches. Toggling a Switch fires the corresponding routine on Tethral. Switches auto-return to off after firing (stateless trigger pattern). Tap the link in the docs for help generating an API token.",
+  "footerDisplay": "Need an API token? Contact Tethral support for the beta program. Self-serve token issuance ships with the Tethral web app.",
   "schema": {
     "type": "object",
-    "required": ["name"],
+    "required": ["name", "apiToken"],
     "additionalProperties": false,
     "properties": {
       "name": {
         "title": "Name",
         "type": "string",
-        "default": "Example Dynamic Platform"
+        "default": "Tethral",
+        "description": "Display name for this Tethral platform in Homebridge logs."
+      },
+      "apiToken": {
+        "title": "Tethral API Token",
+        "type": "string",
+        "format": "password",
+        "minLength": 1,
+        "description": "Long-lived API token issued by Tethral. Starts with 'tth_'."
+      },
+      "apiBaseUrl": {
+        "title": "Tethral API Base URL",
+        "type": "string",
+        "format": "uri",
+        "default": "https://api.tethral.ai",
+        "description": "Override for staging or local development. Leave the default for production."
+      },
+      "pollIntervalSeconds": {
+        "title": "Routine Sync Interval (seconds)",
+        "type": "integer",
+        "default": 300,
+        "minimum": 60,
+        "maximum": 3600,
+        "description": "How often the plugin re-fetches your routine list from Tethral. Lower values pick up new routines faster but use more API calls."
+      },
+      "executeTimeoutMs": {
+        "title": "Execute Request Timeout (ms)",
+        "type": "integer",
+        "default": 5000,
+        "minimum": 1000,
+        "maximum": 30000,
+        "description": "How long to wait for Tethral to acknowledge a routine execution before treating it as failed."
       }
     }
   }

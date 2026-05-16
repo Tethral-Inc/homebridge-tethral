@@ -1,202 +1,86 @@
-<p align="center">
+# @tethral/homebridge-tethral
 
-<img src="https://github.com/homebridge/branding/raw/latest/logos/homebridge-wordmark-logo-vertical.png" width="150">
+A [Homebridge](https://homebridge.io) 2.0 plugin that exposes your [Tethral](https://tethral.ai) routines as HomeKit Switches. Switches show up in the Apple Home app, and (via Homebridge 2.0's Matter bridge) propagate to any Matter-compatible controller — Google Home, SmartThings, and more.
 
-</p>
+Each Tethral routine becomes one Switch. Toggling the Switch fires the routine on Tethral, and the Switch auto-returns to off (the standard HomeKit stateless-trigger pattern).
 
-<span align="center">
+> **Beta.** This plugin is in beta. Routines-only for v1 — stateful device bridging will come later. API tokens are issued by Tethral support during the closed beta; self-serve token issuance ships with the Tethral web app.
 
-# Homebridge Platform Plugin Template
+## Requirements
 
-</span>
+- Homebridge `^2.0.0`
+- Node `^22.10.0 || ^24.0.0`
+- A Tethral account and an API token (request one from Tethral support during the beta)
 
-This is a template Homebridge dynamic platform plugin and can be used as a base to help you get started developing your own plugin.
+## Installation
 
-This template should be used in conjunction with the [developer documentation](https://developers.homebridge.io/). A full list of all supported service types, and their characteristics is available on this site.
+In the Homebridge UI, search for `@tethral/homebridge-tethral` and install. Or from the command line:
 
-### Clone As Template
-
-Click the link below to create a new GitHub Repository using this template, or click the *Use This Template* button above.
-
-<span align="center">
-
-### [Create New Repository From Template](https://github.com/homebridge/homebridge-plugin-template/generate)
-
-</span>
-
-### Setup Development Environment
-
-To develop Homebridge plugins you must have Node.js 22 or later installed, and a modern code editor such as [VS Code](https://code.visualstudio.com/). This plugin template uses [TypeScript](https://www.typescriptlang.org/) to make development easier and comes with pre-configured settings for [VS Code](https://code.visualstudio.com/) and ESLint. If you are using VS Code install these extensions:
-
-- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-
-### Install Development Dependencies
-
-Using a terminal, navigate to the project folder and run this command to install the development dependencies:
-
-```shell
-npm install
+```sh
+npm install -g @tethral/homebridge-tethral
 ```
 
-### Update package.json
+## Configuration
 
-Open the [`package.json`](./package.json) and change the following attributes:
+The plugin is configured through the Homebridge UI under **Plugins → Tethral**. The fields are:
 
-- `name` - this should be prefixed with `homebridge-` or `@username/homebridge-`, is case-sensitive, and contains no spaces nor special characters apart from a dash `-`
-- `displayName` - this is the "nice" name displayed in the Homebridge UI
-- `homepage` - link to your GitHub repo's `README.md`
-- `repository.url` - link to your GitHub repo
-- `bugs.url` - link to your GitHub repo issues page
+| Field | Required | Default | Description |
+| --- | --- | --- | --- |
+| `name` | yes | `Tethral` | Display name for the platform in Homebridge logs |
+| `apiToken` | yes | — | Long-lived Tethral API token, starts with `tth_` |
+| `apiBaseUrl` | no | `https://api.tethral.ai` | Override for staging or local dev |
+| `pollIntervalSeconds` | no | `300` | How often to re-fetch your routine list |
+| `executeTimeoutMs` | no | `5000` | Per-execute request timeout |
 
-When you are ready to publish the plugin you should set `private` to false, or remove the attribute entirely.
+Equivalent block in `config.json`:
 
-### Update Plugin Defaults
-
-Open the [`src/settings.ts`](./src/settings.ts) file and change the default values:
-
-- `PLATFORM_NAME` - Set this to be the name of your platform. This is the name of the platform that users will use to register the plugin in the Homebridge `config.json`.
-- `PLUGIN_NAME` - Set this to be the same name you set in the [`package.json`](./package.json) file.
-
-Open the [`config.schema.json`](./config.schema.json) file and change the following attribute:
-
-- `pluginAlias` - set this to match the `PLATFORM_NAME` you defined in the previous step.
-
-See the [Homebridge API docs](https://developers.homebridge.io/#/config-schema#default-values) for more details on the other attributes you can set in the `config.schema.json` file.
-
-### Build Plugin
-
-TypeScript needs to be compiled into JavaScript before it can run. The following command will compile the contents of your [`src`](./src) directory and put the resulting code into the `dist` folder.
-
-```shell
-npm run build
-```
-
-### Link To Homebridge
-
-Run this command so your global installation of Homebridge can discover the plugin in your development environment:
-
-```shell
-npm link
-```
-
-You can now start Homebridge, use the `-D` flag, so you can see debug log messages in your plugin:
-
-```shell
-homebridge -D
-```
-
-### Watch For Changes and Build Automatically
-
-If you want to have your code compile automatically as you make changes, and restart Homebridge automatically between changes, you first need to add your plugin as a platform in `./test/hbConfig/config.json`:
-```
+```json
 {
-...
-    "platforms": [
-        {
-            "name": "Config",
-            "port": 8581,
-            "platform": "config"
-        },
-        {
-            "name": "<PLUGIN_NAME>",
-            //... any other options, as listed in config.schema.json ...
-            "platform": "<PLATFORM_NAME>"
-        }
-    ]
+  "platform": "Tethral",
+  "name": "Tethral",
+  "apiToken": "tth_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "pollIntervalSeconds": 300
 }
 ```
 
-and then you can run:
+## How it works
 
-```shell
+1. On startup, the plugin calls `GET /v1/routines` against the Tethral API using your bearer token.
+2. Each returned routine is registered as a HomeKit Switch accessory, with the routine's `id` as the stable UUID seed (so accessories survive Homebridge restarts).
+3. When you toggle the Switch on (manually, via a HomeKit automation, or via Siri), the plugin POSTs to `/v1/routines/{id}/execute`. Tethral fires the routine asynchronously.
+4. The Switch auto-resets to off after ~1.2 seconds — there's no persistent "on" state for a routine trigger.
+5. The plugin re-fetches the routine list every `pollIntervalSeconds`. New routines appear as new Switches; deleted routines are unregistered.
+6. On Homebridge 2.0, each Switch is also published to the Matter bridge, so it appears in any Matter-compatible controller paired to your Homebridge instance.
+
+If the Tethral API is unreachable, existing Switches stay registered and toggling one returns "Not Responding" in the Home app until the API comes back. The plugin will not crash Homebridge on transient API failures.
+
+## Local development
+
+This repo includes a tiny local mock of the Tethral API under `dev/mock-api/`, so you can develop the plugin without standing up a real backend.
+
+```sh
+git clone https://github.com/TethralAI/homebridge-tethral.git
+cd homebridge-tethral
+npm install
+npm run build
+
+# Terminal 1: start the mock API on http://127.0.0.1:3000
+npm run mock-api
+
+# Terminal 2: mint a dev token (printed once to stdout)
+npm run mint-token
+
+# Paste the minted token into test/hbConfig/config.json under "apiToken",
+# then start Homebridge against the local test config:
 npm run watch
 ```
 
-This will launch an instance of Homebridge in debug mode which will restart every time you make a change to the source code. It will load the config stored in the default location under `~/.homebridge`. You may need to stop other running instances of Homebridge while using this command to prevent conflicts. You can adjust the Homebridge startup command in the [`nodemon.json`](./nodemon.json) file.
+The mock API ships seeded with three demo routines (`Good Morning`, `Movie Night`, `Leaving Home`). The mock is for development only and is never published to npm.
 
-### Customise Plugin
+## Verified status
 
-You can now start customising the plugin template to suit your requirements.
+This plugin targets Homebridge Verified. The build is dynamic-platform, ESM-only, telemetry-free, supports child bridges, and ships a config schema for the Homebridge UI.
 
-- [`src/platform.ts`](./src/platform.ts) - this is where your device setup and discovery should go.
-- [`src/platformAccessory.ts`](./src/platformAccessory.ts) - this is where your accessory control logic should go, you can rename or create multiple instances of this file for each accessory type you need to implement as part of your platform plugin. You can refer to the [developer documentation](https://developers.homebridge.io/) to see what characteristics you need to implement for each service type.
-- [`config.schema.json`](./config.schema.json) - update the config schema to match the config you expect from the user. See the [Plugin Config Schema Documentation](https://developers.homebridge.io/#/config-schema).
+## License
 
-### Versioning Your Plugin
-
-Given a version number `MAJOR`.`MINOR`.`PATCH`, such as `1.4.3`, increment the:
-
-1. **MAJOR** version when you make breaking changes to your plugin,
-2. **MINOR** version when you add functionality in a backwards compatible manner, and
-3. **PATCH** version when you make backwards compatible bug fixes.
-
-You can use the `npm version` command to help you with this:
-
-```shell
-# major update / breaking changes
-npm version major
-
-# minor update / new features
-npm version update
-
-# patch / bugfixes
-npm version patch
-```
-
-### Publish Package
-
-When you are ready to publish your plugin to [npm](https://www.npmjs.com/), make sure you have removed the `private` attribute from the [`package.json`](./package.json) file then run:
-
-```shell
-npm publish
-```
-
-If you are publishing a scoped plugin, i.e. `@username/homebridge-xxx` you will need to add `--access=public` to command the first time you publish.
-
-#### Publishing Beta Versions
-
-You can publish *beta* versions of your plugin for other users to test before you release it to everyone.
-
-```shell
-# create a new pre-release version (eg. 2.1.0-beta.1)
-npm version prepatch --preid beta
-
-# publish to @beta
-npm publish --tag beta
-```
-
-Users can then install the  *beta* version by appending `@beta` to the install command, for example:
-
-```shell
-sudo npm install -g homebridge-example-plugin@beta
-```
-
-### Best Practices
-
-Consider creating your plugin with the [Homebridge Verified](https://github.com/homebridge/verified) criteria in mind. This will help you to create a plugin that is easy to use and works well with Homebridge.
-You can then submit your plugin to the Homebridge Verified list for review.
-The most up-to-date criteria can be found [here](https://github.com/homebridge/verified#requirements).
-For reference, the current criteria are:
-
-- **General**
-  - The plugin must be of type [dynamic platform](https://developers.homebridge.io/#/#dynamic-platform-template).
-  - The plugin must not offer the same nor less functionality than that of any existing **verified** plugin.
-- **Repo**
-  - The plugin must be published to NPM and the source code available on a GitHub repository, with issues enabled.
-  - A GitHub release should be created for every new version of your plugin, with release notes.
-- **Environment**
-  - The plugin must run on all [supported LTS versions of Node.js](https://github.com/homebridge/homebridge/wiki/How-To-Update-Node.js), at the time of writing this is Node v22 and v24.
-  - The plugin must successfully install and not start unless it is configured.
-  - The plugin must not execute post-install scripts that modify the users' system in any way.
-  - The plugin must not require the user to run Homebridge in a TTY or with non-standard startup parameters, even for initial configuration.
-- **Codebase**
-  - The plugin must implement the [Homebridge Plugin Settings GUI](https://developers.homebridge.io/#/config-schema).
-  - The plugin must not contain any analytics or calls that enable you to track the user.
-  - If the plugin needs to write files to disk (cache, keys, etc.), it must store them inside the Homebridge storage directory.
-  - The plugin must not throw unhandled exceptions, the plugin must catch and log its own errors.
-
-### Useful Links
-
-Note these links are here for help but are not supported/verified by the Homebridge team
-
-- [Custom Characteristics](https://github.com/homebridge/homebridge-plugin-template/issues/20)
+[Apache 2.0](./LICENSE)

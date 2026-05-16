@@ -1,41 +1,49 @@
 {
-  "name": "homebridge-plugin-name",
-  "displayName": "Plugin Name",
+  "name": "@tethral/homebridge-tethral",
+  "displayName": "Tethral",
   "type": "module",
-  "version": "1.0.0",
-  "private": true,
-  "description": "A short description about what your plugin does.",
-  "author": "Your Name",
+  "version": "0.1.0",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Expose Tethral routines as HomeKit and Matter accessories via Homebridge",
+  "author": "Tethral",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/USERNAME/GITHUB_PROJECT_NAME#readme",
+  "homepage": "https://github.com/TethralAI/homebridge-tethral#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "https://github.com/TethralAI/homebridge-tethral.git"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/TethralAI/homebridge-tethral/issues"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin",
+    "homebridge",
+    "tethral",
+    "matter",
+    "homekit",
+    "smart-home"
   ],
   "main": "dist/index.js",
   "engines": {
     "node": "^22.10.0 || ^24.0.0",
-    "homebridge": "^1.8.0 || ^2.0.0"
+    "homebridge": "^2.0.0"
   },
   "scripts": {
     "build": "rimraf ./dist && tsc",
     "lint": "eslint . --max-warnings=0",
     "prepublishOnly": "npm run lint && npm run build",
-    "watch": "npm run build && npm link && nodemon"
-  },
-  "dependencies": {
-    "homebridge-lib": "^8.0.1"
+    "watch": "npm run build && npm link && nodemon",
+    "mock-api": "node --watch dev/mock-api/server.js",
+    "mint-token": "node dev/mock-api/mint-token.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.6.0",
     "eslint": "^10.3.0",
+    "fastify": "^5.0.0",
     "homebridge": "^2.0.0",
     "nodemon": "^3.1.14",
     "rimraf": "^6.1.3",

@@ -1,13 +1,13 @@
 {
   "bridge": {
-    "name": "PluginTemplate",
-    "username": "AA:BB:CC:DD:EE:FF",
+    "name": "TethralDev",
+    "username": "AA:BB:CC:DD:EE:01",
     "port": 51826,
     "pin": "031-45-154"
   },
-  "description": "HomeBridge HTTP Status Control",
+  "description": "Local Homebridge config for developing @tethral/homebridge-tethral",
   "plugins": [
-    "homebridge-plugin-name",
+    "@tethral/homebridge-tethral",
     "homebridge-config-ui-x"
   ],
   "platforms": [
@@ -23,8 +23,11 @@
       "debug": false
     },
     {
-      "name": "homebridge-plugin-name",
-      "platform": "ExampleHomebridgePlugin"
+      "name": "Tethral",
+      "platform": "Tethral",
+      "apiToken": "tth_dev_replace_with_mint_token_output",
+      "apiBaseUrl": "http://localhost:3000",
+      "pollIntervalSeconds": 60
     }
   ],
   "accessories": []
