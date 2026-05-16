@@ -1,5 +1,8 @@
-# blank_issues_enabled: false
-# contact_links:
-#   - name: Homebridge Discord Community
-#     url: https://discord.gg/kqNCe2D
-#     about: Ask your questions in the #YOUR_CHANNEL_HERE channel
+blank_issues_enabled: false
+contact_links:
+  - name: Tethral Support
+    url: https://tethral.ai/support
+    about: Questions about your Tethral account, API tokens, or routines that aren't bugs in this plugin.
+  - name: Homebridge Discord
+    url: https://discord.gg/kqNCe2D
+    about: General Homebridge questions and community support.

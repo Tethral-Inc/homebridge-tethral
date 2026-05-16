@@ -77,9 +77,13 @@ npm run watch
 
 The mock API ships seeded with three demo routines (`Good Morning`, `Movie Night`, `Leaving Home`). The mock is for development only and is never published to npm.
 
+## Child bridge mode (recommended)
+
+This plugin works as a [Homebridge child bridge](https://github.com/homebridge/homebridge/wiki/Child-Bridges) without any extra configuration. In the Homebridge UI, open the Tethral plugin settings and toggle **"Bridge"** → **"Child Bridge"**. Running as a child bridge isolates the plugin from your main Homebridge instance, so a transient Tethral API outage or plugin error can't affect your other accessories. A restart of the child bridge only touches Tethral switches; the rest of your Homebridge keeps running.
+
 ## Verified status
 
-This plugin targets Homebridge Verified. The build is dynamic-platform, ESM-only, telemetry-free, supports child bridges, and ships a config schema for the Homebridge UI.
+This plugin targets Homebridge Verified. The build is dynamic-platform, ESM-only, telemetry-free (zero runtime dependencies — only native `fetch`), supports child bridges, ships a config schema for the Homebridge UI, and publishes a GitHub Release for every version.
 
 ## License
 
