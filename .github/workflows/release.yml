@@ -48,7 +48,7 @@ jobs:
       # No NPM_TOKEN secret needed: GitHub Actions' id-token (signed by GitHub
       # OIDC) is exchanged for an ephemeral npm publish credential. npm verifies
       # the OIDC claim against the trusted publisher we configured for the
-      # @tethralinc/homebridge-tethral package (owner=TethralAI, repo=homebridge-tethral,
+      # @tethralinc/homebridge-tethral package (owner=Tethral-Inc, repo=homebridge-tethral,
       # workflow=release.yml). --provenance attaches a verifiable supply-chain
       # attestation to the published version.
       - name: Publish to npm with provenance

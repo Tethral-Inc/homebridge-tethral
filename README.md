@@ -59,7 +59,7 @@ If the Tethral API is unreachable, existing Switches stay registered and togglin
 This repo includes a tiny local mock of the Tethral API under `dev/mock-api/`, so you can develop the plugin without standing up a real backend.
 
 ```sh
-git clone https://github.com/TethralAI/homebridge-tethral.git
+git clone https://github.com/Tethral-Inc/homebridge-tethral.git
 cd homebridge-tethral
 npm install
 npm run build

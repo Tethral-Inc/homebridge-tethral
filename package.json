@@ -10,13 +10,13 @@
   "description": "Expose Tethral routines as HomeKit and Matter accessories via Homebridge",
   "author": "Tethral",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/TethralAI/homebridge-tethral#readme",
+  "homepage": "https://github.com/Tethral-Inc/homebridge-tethral#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TethralAI/homebridge-tethral.git"
+    "url": "https://github.com/Tethral-Inc/homebridge-tethral.git"
   },
   "bugs": {
-    "url": "https://github.com/TethralAI/homebridge-tethral/issues"
+    "url": "https://github.com/Tethral-Inc/homebridge-tethral/issues"
   },
   "keywords": [
     "homebridge-plugin",
