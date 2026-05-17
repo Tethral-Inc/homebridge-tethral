@@ -5,12 +5,14 @@ import type { TethralRoutine } from './tethralClient.js';
 
 const STATELESS_RESET_MS = 1_200;
 
-interface RoutineContext {
+export interface RoutineContext {
   routine: TethralRoutine;
 }
 
 export class TethralAccessory {
   private readonly service: Service;
+  private resetTimer: NodeJS.Timeout | null = null;
+  private disposed = false;
 
   constructor(
     private readonly platform: TethralPlatform,
@@ -32,6 +34,21 @@ export class TethralAccessory {
     this.service.getCharacteristic(this.platform.Characteristic.On)
       .onGet(() => false)
       .onSet(this.fireRoutine.bind(this));
+  }
+
+  updateRoutine(routine: TethralRoutine): void {
+    this.accessory.context.routine = routine;
+    if (this.service.displayName !== routine.name) {
+      this.service.updateCharacteristic(this.platform.Characteristic.Name, routine.name);
+    }
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    if (this.resetTimer) {
+      clearTimeout(this.resetTimer);
+      this.resetTimer = null;
+    }
   }
 
   private async fireRoutine(value: CharacteristicValue): Promise<void> {
@@ -63,7 +80,14 @@ export class TethralAccessory {
   }
 
   private scheduleReset(): void {
-    setTimeout(() => {
+    if (this.resetTimer) {
+      clearTimeout(this.resetTimer);
+    }
+    this.resetTimer = setTimeout(() => {
+      this.resetTimer = null;
+      if (this.disposed) {
+        return;
+      }
       this.service.updateCharacteristic(this.platform.Characteristic.On, false);
     }, STATELESS_RESET_MS);
   }

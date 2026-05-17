@@ -11,6 +11,10 @@ export interface TethralClientOptions {
   listTimeoutMs?: number;
 }
 
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
 export class TethralApiError extends Error {
   constructor(
     message: string,
@@ -20,6 +24,22 @@ export class TethralApiError extends Error {
     super(message);
     this.name = 'TethralApiError';
   }
+}
+
+function composeSignals(...signals: (AbortSignal | undefined)[]): AbortSignal {
+  const defined = signals.filter((s): s is AbortSignal => s !== undefined);
+  if (defined.length === 1) {
+    return defined[0];
+  }
+  return AbortSignal.any(defined);
+}
+
+function normalizeRoutine(input: TethralRoutine & { description?: string | null }): TethralRoutine {
+  return {
+    id: input.id,
+    name: input.name,
+    description: input.description ?? undefined,
+  };
 }
 
 export class TethralClient {
@@ -35,18 +55,20 @@ export class TethralClient {
     this.listTimeoutMs = opts.listTimeoutMs ?? 10_000;
   }
 
-  async listRoutines(): Promise<TethralRoutine[]> {
-    const body = await this.request<{ routines: TethralRoutine[] }>('GET', '/v1/routines', undefined, this.listTimeoutMs);
-    return body.routines ?? [];
+  async listRoutines(opts: RequestOptions = {}): Promise<TethralRoutine[]> {
+    const body = await this.request<{ routines: TethralRoutine[] }>('GET', '/v1/routines', undefined, this.listTimeoutMs, opts.signal);
+    return (body.routines ?? []).map(normalizeRoutine);
   }
 
-  async executeRoutine(routineId: string): Promise<void> {
-    await this.request<unknown>('POST', `/v1/routines/${encodeURIComponent(routineId)}/execute`, null, this.executeTimeoutMs);
+  async executeRoutine(routineId: string, opts: RequestOptions = {}): Promise<void> {
+    await this.request<unknown>('POST', `/v1/routines/${encodeURIComponent(routineId)}/execute`, null, this.executeTimeoutMs, opts.signal);
   }
 
-  private async request<T>(method: 'GET' | 'POST', path: string, body: unknown, timeoutMs: number): Promise<T> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  private async request<T>(method: 'GET' | 'POST', path: string, body: unknown, timeoutMs: number, externalSignal?: AbortSignal): Promise<T> {
+    const timeoutController = new AbortController();
+    const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+    const signal = composeSignals(timeoutController.signal, externalSignal);
+
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         method,
@@ -57,7 +79,7 @@ export class TethralClient {
           'user-agent': '@tethral/homebridge-tethral',
         },
         body: body != null ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
+        signal,
       });
 
       if (!res.ok) {
@@ -75,6 +97,9 @@ export class TethralClient {
         throw err;
       }
       if ((err as Error).name === 'AbortError') {
+        if (externalSignal?.aborted) {
+          throw new TethralApiError(`Tethral API ${method} ${path} aborted`, undefined, err);
+        }
         throw new TethralApiError(`Tethral API ${method} ${path} timed out after ${timeoutMs}ms`, undefined, err);
       }
       throw new TethralApiError(`Tethral API ${method} ${path} network error: ${(err as Error).message}`, undefined, err);

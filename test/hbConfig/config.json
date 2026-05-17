@@ -1,9 +1,11 @@
 {
   "bridge": {
-    "name": "TethralDev",
-    "username": "AA:BB:CC:DD:EE:01",
+    "name": "Tethral",
+    "username": "1A:2B:3C:4D:5E:6F",
     "port": 51826,
-    "pin": "031-45-154"
+    "pin": "092-46-820",
+    "bind": ["192.168.4.25"],
+    "advertiser": "ciao"
   },
   "description": "Local Homebridge config for developing @tethral/homebridge-tethral",
   "plugins": [
