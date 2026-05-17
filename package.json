@@ -1,5 +1,5 @@
 {
-  "name": "@tethral/homebridge-tethral",
+  "name": "@tethralinc/homebridge-tethral",
   "displayName": "Tethral",
   "type": "module",
   "version": "0.1.0",

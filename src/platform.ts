@@ -1,4 +1,5 @@
 import type { API, Characteristic, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig, Service } from 'homebridge';
+import { Categories } from 'homebridge';
 
 import { TethralAccessory, type RoutineContext } from './platformAccessory.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
@@ -145,7 +146,7 @@ export class TethralPlatform implements DynamicPlatformPlugin {
 
     for (const routine of diff.create) {
       const uuid = this.uuidFor(routine.id);
-      const accessory = new this.api.platformAccessory<RoutineContext>(routine.name, uuid);
+      const accessory = new this.api.platformAccessory<RoutineContext>(routine.name, uuid, Categories.SWITCH);
       accessory.context.routine = routine;
       this.wrappers.set(uuid, new TethralAccessory(this, accessory));
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);

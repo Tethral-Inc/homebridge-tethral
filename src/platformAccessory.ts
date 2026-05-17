@@ -20,16 +20,28 @@ export class TethralAccessory {
   ) {
     const routine = accessory.context.routine;
 
+    // AccessoryInformation requires Name, Manufacturer, Model, SerialNumber,
+    // FirmwareRevision, and Identify per HAP spec. iOS Home silently rejects
+    // /accessories when any required characteristic is missing.
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Name, routine.name)
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Tethral')
       .setCharacteristic(this.platform.Characteristic.Model, 'Routine')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, routine.id);
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, routine.id)
+      .setCharacteristic(this.platform.Characteristic.FirmwareRevision, '0.1.0');
 
     this.service =
       this.accessory.getService(this.platform.Service.Switch) ??
       this.accessory.addService(this.platform.Service.Switch);
 
+    // Name is required; ConfiguredName is optional on Switch but Home app expects it
+    // for user renames to sync correctly. Adding via addOptionalCharacteristic
+    // first to silence the HAP-NodeJS validation warning.
     this.service.setCharacteristic(this.platform.Characteristic.Name, routine.name);
+    if (!this.service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      this.service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
+    this.service.setCharacteristic(this.platform.Characteristic.ConfiguredName, routine.name);
 
     this.service.getCharacteristic(this.platform.Characteristic.On)
       .onGet(() => false)
@@ -40,6 +52,7 @@ export class TethralAccessory {
     this.accessory.context.routine = routine;
     if (this.service.displayName !== routine.name) {
       this.service.updateCharacteristic(this.platform.Characteristic.Name, routine.name);
+      this.service.updateCharacteristic(this.platform.Characteristic.ConfiguredName, routine.name);
     }
   }
 

@@ -76,7 +76,7 @@ export class TethralClient {
           'authorization': `Bearer ${this.token}`,
           'accept': 'application/json',
           ...(body != null ? { 'content-type': 'application/json' } : {}),
-          'user-agent': '@tethral/homebridge-tethral',
+          'user-agent': '@tethralinc/homebridge-tethral',
         },
         body: body != null ? JSON.stringify(body) : undefined,
         signal,

@@ -1,4 +1,4 @@
-# @tethral/homebridge-tethral
+# @tethralinc/homebridge-tethral
 
 A [Homebridge](https://homebridge.io) 2.0 plugin that exposes your [Tethral](https://tethral.ai) routines as HomeKit Switches. Switches show up in the Apple Home app, and (via Homebridge 2.0's Matter bridge) propagate to any Matter-compatible controller — Google Home, SmartThings, and more.
 
@@ -14,10 +14,10 @@ Each Tethral routine becomes one Switch. Toggling the Switch fires the routine o
 
 ## Installation
 
-In the Homebridge UI, search for `@tethral/homebridge-tethral` and install. Or from the command line:
+In the Homebridge UI, search for `@tethralinc/homebridge-tethral` and install. Or from the command line:
 
 ```sh
-npm install -g @tethral/homebridge-tethral
+npm install -g @tethralinc/homebridge-tethral
 ```
 
 ## Configuration

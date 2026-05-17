@@ -22,14 +22,24 @@ beforeEach(() => {
     return new Promise<Response>((resolve, reject) => {
       let settled = false;
       const onAbort = () => {
-        if (settled) return;
+        if (settled) {
+          return;
+        }
         settled = true;
         reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
       };
       signal?.addEventListener('abort', onAbort, { once: true });
       respond(input, init).then(
-        (r) => { if (!settled) { settled = true; signal?.removeEventListener('abort', onAbort); resolve(r); } },
-        (e) => { if (!settled) { settled = true; signal?.removeEventListener('abort', onAbort); reject(e); } },
+        (r) => {
+          if (!settled) {
+            settled = true; signal?.removeEventListener('abort', onAbort); resolve(r); 
+          } 
+        },
+        (e) => {
+          if (!settled) {
+            settled = true; signal?.removeEventListener('abort', onAbort); reject(e); 
+          } 
+        },
       );
     });
   }) as typeof fetch;
