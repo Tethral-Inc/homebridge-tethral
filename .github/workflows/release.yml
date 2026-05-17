@@ -32,6 +32,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Test
+        run: npm test
+
       - name: Verify tag matches package.json version
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
@@ -40,6 +43,16 @@ jobs:
             echo "Tag $TAG_VERSION does not match package.json version $PKG_VERSION" >&2
             exit 1
           fi
+
+      # Publish to npm using OIDC Trusted Publishing.
+      # No NPM_TOKEN secret needed: GitHub Actions' id-token (signed by GitHub
+      # OIDC) is exchanged for an ephemeral npm publish credential. npm verifies
+      # the OIDC claim against the trusted publisher we configured for the
+      # @tethralinc/homebridge-tethral package (owner=TethralAI, repo=homebridge-tethral,
+      # workflow=release.yml). --provenance attaches a verifiable supply-chain
+      # attestation to the published version.
+      - name: Publish to npm with provenance
+        run: npm publish --access public --provenance
 
       - name: Generate release notes from commits since previous tag
         id: notes
@@ -66,10 +79,3 @@ jobs:
           body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-
-      # Uncomment when ready to publish to npm.
-      # Requires NPM_TOKEN secret with publish access for @tethral scope.
-      # - name: Publish to npm
-      #   run: npm publish --access public --provenance
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
