@@ -52,7 +52,7 @@ jobs:
       # workflow=release.yml). --provenance attaches a verifiable supply-chain
       # attestation to the published version.
       - name: Publish to npm with provenance
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance --loglevel verbose
 
       - name: Generate release notes from commits since previous tag
         id: notes
