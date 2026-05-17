@@ -44,6 +44,25 @@ jobs:
             exit 1
           fi
 
+      - name: Debug OIDC token claims (no secrets exposed)
+        run: |
+          # Request an OIDC token with npm registry audience and decode the
+          # payload claims. The signature is stripped before printing; the
+          # claims are public information from GitHub anyway.
+          TOKEN_RESP=$(curl -sLS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org")
+          TOKEN=$(echo "$TOKEN_RESP" | jq -r .value)
+          if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
+            echo "Failed to obtain OIDC token. Response: $TOKEN_RESP"
+            exit 1
+          fi
+          PAYLOAD=$(echo "$TOKEN" | cut -d. -f2)
+          # base64url decode (pad to multiple of 4 first)
+          PADDED=$(printf '%s' "$PAYLOAD" | awk '{ pad = (4 - length($0) % 4) % 4; printf "%s%.*s", $0, pad, "====" }' | tr '_-' '/+')
+          echo "==== OIDC TOKEN CLAIMS (sent to npm) ===="
+          echo "$PADDED" | base64 -d | jq '{ iss, aud, sub, repository, repository_owner, workflow_ref, ref, ref_type, environment }'
+          echo "========================================="
+
       # Publish to npm using OIDC Trusted Publishing.
       # No NPM_TOKEN secret needed: GitHub Actions' id-token (signed by GitHub
       # OIDC) is exchanged for an ephemeral npm publish credential. npm verifies
