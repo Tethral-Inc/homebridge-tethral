@@ -3,13 +3,6 @@
 All notable changes to `@tethralinc/homebridge-tethral` are documented in this file.
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.4] — 2026-05-17
-
-Retry of OIDC Trusted Publishing after reconfiguring the npm-side
-trusted publisher record. v0.1.3 was published via local CLI as a
-fallback after the v0.1.1 and v0.1.2 OIDC publishes were rejected
-with a masked 404. No code changes vs 0.1.3.
-
 ## [0.1.2] — 2026-05-17
 
 Diagnostic release. v0.1.1 release workflow's `npm publish` returned a

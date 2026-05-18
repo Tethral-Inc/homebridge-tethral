@@ -44,34 +44,30 @@ jobs:
             exit 1
           fi
 
-      - name: Debug OIDC token claims (no secrets exposed)
-        run: |
-          # Request an OIDC token with npm registry audience and decode the
-          # payload claims. The signature is stripped before printing; the
-          # claims are public information from GitHub anyway.
-          TOKEN_RESP=$(curl -sLS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org")
-          TOKEN=$(echo "$TOKEN_RESP" | jq -r .value)
-          if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
-            echo "Failed to obtain OIDC token. Response: $TOKEN_RESP"
-            exit 1
-          fi
-          PAYLOAD=$(echo "$TOKEN" | cut -d. -f2)
-          # base64url decode (pad to multiple of 4 first)
-          PADDED=$(printf '%s' "$PAYLOAD" | awk '{ pad = (4 - length($0) % 4) % 4; printf "%s%.*s", $0, pad, "====" }' | tr '_-' '/+')
-          echo "==== OIDC TOKEN CLAIMS (sent to npm) ===="
-          echo "$PADDED" | base64 -d | jq '{ iss, aud, sub, repository, repository_owner, workflow_ref, ref, ref_type, environment }'
-          echo "========================================="
-
-      # Publish to npm using OIDC Trusted Publishing.
-      # No NPM_TOKEN secret needed: GitHub Actions' id-token (signed by GitHub
-      # OIDC) is exchanged for an ephemeral npm publish credential. npm verifies
-      # the OIDC claim against the trusted publisher we configured for the
-      # @tethralinc/homebridge-tethral package (owner=Tethral-Inc, repo=homebridge-tethral,
-      # workflow=release.yml). --provenance attaches a verifiable supply-chain
-      # attestation to the published version.
-      - name: Publish to npm with provenance
-        run: npm publish --access public --provenance --loglevel verbose
+      # ----------------------------------------------------------------------
+      # npm publish is DELIBERATELY OMITTED from this workflow.
+      #
+      # We attempted OIDC Trusted Publishing (tags v0.1.1, v0.1.2, v0.1.4) and
+      # every attempt failed with a masked 404 on the package PUT, despite:
+      #   - GitHub Actions OIDC token claims being verifiably correct
+      #     (repository: Tethral-Inc/homebridge-tethral, workflow_ref matches)
+      #   - npm accepting the same OIDC token at the Sigstore provenance
+      #     endpoint in the same publish call
+      # The trusted publisher record on npm.com is configured with the exact
+      # owner/repo/workflow values that match the OIDC claims. This is an
+      # npm-side issue (suspected trusted-publisher record state for newly
+      # created orgs, or 2FA-vs-OIDC interaction). Tracked with npm support;
+      # not solvable from our side.
+      #
+      # Until resolved, the maintainer runs `npm publish` from a local clone
+      # after the release tag lands. The local CLI authenticates with a
+      # short-lived Granular Access Token + WebAuthn passkey (the npm account
+      # has passkey-only 2FA).
+      #
+      # When OIDC is fixed, restore the publish step:
+      #   - name: Publish to npm with provenance
+      #     run: npm publish --access public --provenance
+      # ----------------------------------------------------------------------
 
       - name: Generate release notes from commits since previous tag
         id: notes
