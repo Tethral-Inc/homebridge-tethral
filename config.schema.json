@@ -45,6 +45,73 @@
         "minimum": 1000,
         "maximum": 30000,
         "description": "How long to wait for Tethral to acknowledge a routine execution before treating it as failed."
+      },
+      "webhooks": {
+        "title": "Custom Webhook Switches",
+        "type": "array",
+        "description": "Optional. Each entry becomes an additional Switch in HomeKit alongside your Tethral routines. Toggling the Switch fires the configured HTTP request. Useful for firing Home Assistant scripts, custom ESP32 endpoints, Slack/Zapier webhooks, or anything Tethral doesn't yet integrate natively.",
+        "items": {
+          "type": "object",
+          "required": ["name", "url"],
+          "properties": {
+            "name": {
+              "title": "Switch Name",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Shown in HomeKit. Must be unique across your webhook list."
+            },
+            "url": {
+              "title": "URL to fire",
+              "type": "string",
+              "format": "uri",
+              "description": "Full http:// or https:// URL the plugin will request when this Switch is toggled on."
+            },
+            "method": {
+              "title": "HTTP Method",
+              "type": "string",
+              "default": "POST",
+              "oneOf": [
+                { "title": "POST", "enum": ["POST"] },
+                { "title": "GET", "enum": ["GET"] },
+                { "title": "PUT", "enum": ["PUT"] },
+                { "title": "PATCH", "enum": ["PATCH"] },
+                { "title": "DELETE", "enum": ["DELETE"] }
+              ]
+            },
+            "headers": {
+              "title": "Headers",
+              "type": "array",
+              "description": "Optional. Each entry is one header key/value pair. The plugin sends a default User-Agent unless you override it here.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "title": "Header name",
+                    "type": "string"
+                  },
+                  "value": {
+                    "title": "Header value",
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "body": {
+              "title": "Request body",
+              "type": "string",
+              "description": "Optional. Raw request body. If you send JSON, also add a Content-Type: application/json header above."
+            },
+            "timeoutMs": {
+              "title": "Timeout (ms)",
+              "type": "integer",
+              "default": 5000,
+              "minimum": 1000,
+              "maximum": 30000,
+              "description": "How long to wait for the target to respond before treating the fire as failed."
+            }
+          }
+        }
       }
     }
   }

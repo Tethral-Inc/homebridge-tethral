@@ -2,7 +2,7 @@
   "name": "@tethralinc/homebridge-tethral",
   "displayName": "Tethral",
   "type": "module",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": false,
   "publishConfig": {
     "access": "public"
@@ -34,7 +34,7 @@
   "scripts": {
     "build": "rimraf ./dist && tsc",
     "lint": "eslint . --max-warnings=0",
-    "test": "node --import tsx --test --test-reporter=spec test/tethralClient.test.ts test/platform.test.ts",
+    "test": "node --import tsx --test --test-reporter=spec test/tethralClient.test.ts test/platform.test.ts test/webhook.test.ts",
     "prepublishOnly": "npm run lint && npm run build && npm test",
     "watch": "npm run build && npm link && nodemon",
     "mock-api": "node --watch dev/mock-api/server.js",

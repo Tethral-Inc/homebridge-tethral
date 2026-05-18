@@ -4,18 +4,27 @@ import { Categories } from 'homebridge';
 import { TethralAccessory, type RoutineContext } from './platformAccessory.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 import { TethralClient, type TethralRoutine } from './tethralClient.js';
+import { WebhookAccessory, type WebhookContext } from './webhookAccessory.js';
+import { validateWebhook, type WebhookConfig } from './webhookClient.js';
 
 interface TethralPlatformConfig extends PlatformConfig {
   apiToken?: string;
   apiBaseUrl?: string;
   pollIntervalSeconds?: number;
   executeTimeoutMs?: number;
+  webhooks?: Array<Partial<WebhookConfig>>;
 }
 
 export interface RoutineDiff {
   create: TethralRoutine[];
   update: Array<{ uuid: string; routine: TethralRoutine }>;
   remove: Array<{ uuid: string; accessory: PlatformAccessory<RoutineContext> }>;
+}
+
+export interface WebhookDiff {
+  create: WebhookConfig[];
+  update: Array<{ uuid: string; config: WebhookConfig }>;
+  remove: Array<{ uuid: string; accessory: PlatformAccessory<WebhookContext> }>;
 }
 
 const DEFAULT_BASE_URL = 'https://api.tethral.ai';
@@ -49,15 +58,44 @@ export function diffRoutines(
   return { create, update, remove };
 }
 
+export function diffWebhooks(
+  current: Map<string, PlatformAccessory<WebhookContext>>,
+  incoming: WebhookConfig[],
+  uuidFor: (webhookName: string) => string,
+): WebhookDiff {
+  const seen = new Set<string>();
+  const create: WebhookConfig[] = [];
+  const update: WebhookDiff['update'] = [];
+  for (const config of incoming) {
+    const uuid = uuidFor(config.name);
+    seen.add(uuid);
+    if (current.has(uuid)) {
+      update.push({ uuid, config });
+    } else {
+      create.push(config);
+    }
+  }
+  const remove: WebhookDiff['remove'] = [];
+  for (const [uuid, accessory] of current) {
+    if (!seen.has(uuid)) {
+      remove.push({ uuid, accessory });
+    }
+  }
+  return { create, update, remove };
+}
+
 export class TethralPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
 
   public readonly accessories: Map<string, PlatformAccessory<RoutineContext>> = new Map();
+  public readonly webhookAccessories: Map<string, PlatformAccessory<WebhookContext>> = new Map();
   public readonly client: TethralClient | null;
 
   private readonly wrappers: Map<string, TethralAccessory> = new Map();
+  private readonly webhookWrappers: Map<string, WebhookAccessory> = new Map();
   private readonly matterPublished: Set<string> = new Set();
+  private readonly webhooks: WebhookConfig[];
   private readonly pollIntervalMs: number;
   private readonly shutdownController = new AbortController();
   private pollTimer: NodeJS.Timeout | null = null;
@@ -87,10 +125,19 @@ export class TethralPlatform implements DynamicPlatformPlugin {
       this.log.info(`Tethral platform initialized (base URL: ${apiBaseUrl}, poll every ${pollSeconds}s)`);
     }
 
+    this.webhooks = this.parseWebhooks(this.config.webhooks);
+    if (this.webhooks.length > 0) {
+      this.log.info(`Loaded ${this.webhooks.length} custom webhook switch(es)`);
+    }
+
     this.api.on('didFinishLaunching', () => {
       for (const accessory of this.accessories.values()) {
         this.publishToMatter(accessory);
       }
+      for (const accessory of this.webhookAccessories.values()) {
+        this.publishToMatter(accessory as unknown as PlatformAccessory<RoutineContext>);
+      }
+      this.syncWebhooks();
       if (!this.client) {
         return;
       }
@@ -107,18 +154,29 @@ export class TethralPlatform implements DynamicPlatformPlugin {
       for (const wrapper of this.wrappers.values()) {
         wrapper.dispose();
       }
+      for (const wrapper of this.webhookWrappers.values()) {
+        wrapper.dispose();
+      }
     });
   }
 
   configureAccessory(accessory: PlatformAccessory): void {
-    const typed = accessory as PlatformAccessory<RoutineContext>;
-    if (!typed.context?.routine) {
-      this.log.warn(`Cached accessory has no routine context, skipping: ${accessory.displayName}`);
+    const ctx = accessory.context as Partial<RoutineContext & WebhookContext>;
+    if (ctx?.routine) {
+      const typed = accessory as PlatformAccessory<RoutineContext>;
+      this.log.debug(`Restoring routine accessory from cache: ${accessory.displayName}`);
+      this.accessories.set(accessory.UUID, typed);
+      this.wrappers.set(accessory.UUID, new TethralAccessory(this, typed));
       return;
     }
-    this.log.debug(`Restoring accessory from cache: ${accessory.displayName}`);
-    this.accessories.set(accessory.UUID, typed);
-    this.wrappers.set(accessory.UUID, new TethralAccessory(this, typed));
+    if (ctx?.webhook) {
+      const typed = accessory as PlatformAccessory<WebhookContext>;
+      this.log.debug(`Restoring webhook accessory from cache: ${accessory.displayName}`);
+      this.webhookAccessories.set(accessory.UUID, typed);
+      this.webhookWrappers.set(accessory.UUID, new WebhookAccessory(this, typed));
+      return;
+    }
+    this.log.warn(`Cached accessory has no routine or webhook context, skipping: ${accessory.displayName}`);
   }
 
   get shutdownSignal(): AbortSignal {
@@ -127,6 +185,32 @@ export class TethralPlatform implements DynamicPlatformPlugin {
 
   private uuidFor(routineId: string): string {
     return this.api.hap.uuid.generate(`${PLUGIN_NAME}:routine:${routineId}`);
+  }
+
+  private uuidForWebhook(name: string): string {
+    return this.api.hap.uuid.generate(`${PLUGIN_NAME}:webhook:${name}`);
+  }
+
+  private parseWebhooks(input: Array<Partial<WebhookConfig>> | undefined): WebhookConfig[] {
+    if (!Array.isArray(input) || input.length === 0) {
+      return [];
+    }
+    const seenNames = new Set<string>();
+    const out: WebhookConfig[] = [];
+    for (const raw of input) {
+      const result = validateWebhook(raw ?? {});
+      if (!result.ok) {
+        this.log.warn(`Skipping invalid webhook config: ${result.reason}`);
+        continue;
+      }
+      if (seenNames.has(result.config.name)) {
+        this.log.warn(`Skipping duplicate webhook name: ${result.config.name}`);
+        continue;
+      }
+      seenNames.add(result.config.name);
+      out.push(result.config);
+    }
+    return out;
   }
 
   private async syncRoutines(): Promise<void> {
@@ -172,6 +256,40 @@ export class TethralPlatform implements DynamicPlatformPlugin {
       this.matterPublished.delete(uuid);
       this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       this.accessories.delete(uuid);
+    }
+  }
+
+  private syncWebhooks(): void {
+    const diff = diffWebhooks(this.webhookAccessories, this.webhooks, (name) => this.uuidForWebhook(name));
+
+    for (const config of diff.create) {
+      const uuid = this.uuidForWebhook(config.name);
+      const accessory = new this.api.platformAccessory<WebhookContext>(config.name, uuid, Categories.SWITCH);
+      accessory.context.webhook = config;
+      this.webhookWrappers.set(uuid, new WebhookAccessory(this, accessory));
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      this.webhookAccessories.set(uuid, accessory);
+      this.publishToMatter(accessory as unknown as PlatformAccessory<RoutineContext>);
+      this.log.info(`Registered webhook switch: ${config.name} -> ${config.method ?? 'POST'} ${config.url}`);
+    }
+
+    for (const { uuid, config } of diff.update) {
+      const accessory = this.webhookAccessories.get(uuid)!;
+      accessory.context.webhook = config;
+      if (accessory.displayName !== config.name) {
+        accessory.displayName = config.name;
+        this.api.updatePlatformAccessories([accessory]);
+      }
+      this.webhookWrappers.get(uuid)?.updateConfig(config);
+    }
+
+    for (const { uuid, accessory } of diff.remove) {
+      this.log.info(`Removing stale webhook switch: ${accessory.displayName}`);
+      this.webhookWrappers.get(uuid)?.dispose();
+      this.webhookWrappers.delete(uuid);
+      this.matterPublished.delete(uuid);
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      this.webhookAccessories.delete(uuid);
     }
   }
 

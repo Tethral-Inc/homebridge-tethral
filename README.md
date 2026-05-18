@@ -67,6 +67,41 @@ Equivalent block in `config.json`:
 
 If the Tethral API is unreachable, existing Switches stay registered and toggling one returns "Not Responding" in the Home app until the API comes back. The plugin will not crash Homebridge on transient API failures.
 
+## Custom webhook switches (escape hatch)
+
+If you want HomeKit to fire something Tethral doesn't yet integrate natively — a Home Assistant script, a custom ESP32 endpoint, a Slack/Zapier webhook, a Shelly relay — add it directly to the plugin config as a `webhooks` entry. Each one becomes an additional Switch in HomeKit, alongside your Tethral routines, with the same stateless-trigger behaviour (toggle on → fires the request → auto-off ~1s later).
+
+Configure in the Homebridge UI under **Plugins → Tethral → Custom Webhook Switches**, or directly in `config.json`:
+
+```json
+{
+  "platform": "Tethral",
+  "name": "Tethral",
+  "apiToken": "tth_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "webhooks": [
+    {
+      "name": "HA: Toggle Garage Lights",
+      "url": "http://192.168.1.50:8123/api/services/light/toggle",
+      "method": "POST",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer ha_long_lived_token..." },
+        { "key": "Content-Type",  "value": "application/json" }
+      ],
+      "body": "{\"entity_id\":\"light.garage\"}"
+    },
+    {
+      "name": "Coffee Maker On",
+      "url": "http://192.168.1.77/cgi-bin/relay?on=1",
+      "method": "GET"
+    }
+  ]
+}
+```
+
+Both `name` and `url` are required. `method` defaults to `POST`. `headers` is an optional array of `{key, value}` pairs. `body` is optional raw string content (set a `Content-Type` header to match if you send JSON). `timeoutMs` defaults to 5000.
+
+**Strategic note:** the escape hatch exists so you don't have to install a second plugin when Tethral doesn't yet cover what you want. New webhook entries on your side become useful signal for what we should integrate natively. If you find yourself adding the same webhook on more than one device, [open an issue](https://github.com/Tethral-Inc/homebridge-tethral/issues/new) and let us know — that's a candidate for a first-class Tethral integration.
+
 ## Local development
 
 This repo includes a tiny local mock of the Tethral API under `dev/mock-api/`, so you can develop the plugin without standing up a real backend.
