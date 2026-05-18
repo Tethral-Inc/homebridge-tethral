@@ -14,7 +14,20 @@ Each Tethral routine becomes one Switch. Toggling the Switch fires the routine o
 
 ## Installation
 
-In the Homebridge UI, search for `@tethralinc/homebridge-tethral` and install. Or from the command line:
+Pick the platform where you run (or want to run) Homebridge:
+
+| Platform | Guide | Setup time |
+| --- | --- | --- |
+| **Raspberry Pi 4 / 5** *(recommended for most users)* | [docs/install/raspberry-pi.md](docs/install/raspberry-pi.md) | ~20 min |
+| **Synology NAS** (DSM 7+) | [docs/install/synology.md](docs/install/synology.md) | ~10 min |
+| **QNAP NAS** | [docs/install/qnap.md](docs/install/qnap.md) | ~15 min |
+| **macOS** (Mac mini, always-on Mac) | [docs/install/macos.md](docs/install/macos.md) | ~10 min |
+| **Linux server** (Ubuntu / Debian / Fedora) | [docs/install/linux.md](docs/install/linux.md) | ~10 min |
+| **Docker** (any host with `network_mode: host`) | [docs/install/docker.md](docs/install/docker.md) | ~5 min |
+| **Windows 11** *(via WSL2 — universal installer coming soon)* | [docs/install/windows.md](docs/install/windows.md) | ~20 min |
+| Already running Homebridge? | Just search for `@tethralinc/homebridge-tethral` in the HB UI Plugins tab | ~1 min |
+
+Quick install if you already have Homebridge and a working CLI:
 
 ```sh
 npm install -g @tethralinc/homebridge-tethral
